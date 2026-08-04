@@ -2,7 +2,7 @@ const CONFIG = {
   // Replace this with your deployed Apps Script Web App URL.
   appsScriptUrl: "https://script.google.com/macros/s/AKfycbyjaUJFlShe-bg4jm3uOm3b4e7UviLe1jBL1TTMVXP1VDlFhfqkPu0nPapdmYQNh4sC4A/exec",
   whatsappNumber: "6583963088",
-  frontendVersion: "visible-log-tabs-duplicate-copy-2026-08-04-v50",
+  frontendVersion: "duplicate-webapp-only-message-2026-08-04-v51",
   defaultReportCount: 89,
   reportCountStartDate: "2026-08-04",
 };
@@ -247,7 +247,7 @@ async function handleSubmit(event) {
     submitButton.textContent = result.duplicate ? "Already requested" : result.found ? "Report emailed" : "Request received";
     setStatus(
       result.duplicate
-        ? "This email or WhatsApp number has already requested a free report."
+        ? "One free report per user. Please contact us at +6583963088 if you would like to compare more condos."
         : result.found
         ? "Your PDF report has been sent to your email."
         : "Request received. We will prepare this report manually and email you within 1–3 working days.",
@@ -354,8 +354,8 @@ function renderResult(lead, result) {
     reportMount.innerHTML = `
       <div class="manual-message">
         <p class="eyebrow">One free report per person</p>
-        <h3>This free report has already been requested.</h3>
-        <p>Each email or WhatsApp number is entitled to one free Condo Buyability Report.</p>
+        <h3>One free report per user.</h3>
+        <p>This email or WhatsApp number has already requested a free Condo Buyability Report.</p>
         <p>If you would like to compare more condos, please contact us at <strong>+6583963088</strong>.</p>
         <a class="whatsapp-button" href="${duplicateWhatsappLink(lead, result)}" target="_blank" rel="noreferrer">WhatsApp Us</a>
       </div>`;
