@@ -2,7 +2,7 @@ const CONFIG = {
   // Replace this with your deployed Apps Script Web App URL.
   appsScriptUrl: "https://script.google.com/macros/s/AKfycbyjaUJFlShe-bg4jm3uOm3b4e7UviLe1jBL1TTMVXP1VDlFhfqkPu0nPapdmYQNh4sC4A/exec",
   whatsappNumber: "6583963088",
-  frontendVersion: "mobile-stats-iframe-fix-2026-08-04-v44",
+  frontendVersion: "mobile-count-unified-jsonp-2026-08-04-v45",
   defaultReportCount: 153,
 };
 
@@ -111,7 +111,7 @@ async function loadReportStats() {
   reportCountResolved = false;
   reportCountVisible = false;
   reportCountTarget = CONFIG.defaultReportCount;
-  reportCountStatsPromise = null;
+  reportCountStatsPromise = resolveReportCountTarget();
 
   observeReportCount();
 }
@@ -139,11 +139,11 @@ function resolveReportCountTarget() {
 }
 
 function fetchReportCountTarget() {
-  const statsRequest = isMobileViewport()
-    ? firstSuccessfulStatsRequest()
-    : jsonp(CONFIG.appsScriptUrl, { action: "publicStats" }, 45000);
-
-  return statsRequest
+  return jsonp(CONFIG.appsScriptUrl, {
+    action: "publicStats",
+    v: CONFIG.frontendVersion,
+    t: Date.now(),
+  }, 60000)
     .then((stats) => {
       const count = Number(stats?.reportsRequested);
       if (Number.isFinite(count) && count >= CONFIG.defaultReportCount) {
@@ -160,26 +160,6 @@ function fetchReportCountTarget() {
       notifyReportCountError(error);
       return reportCountTarget;
     });
-}
-
-function firstSuccessfulStatsRequest() {
-  const requests = [
-    jsonp(CONFIG.appsScriptUrl, { action: "publicStats", v: CONFIG.frontendVersion, t: Date.now() }, 12000),
-    appsScriptStatsBridge(18000),
-    appsScriptBridge("bridgePublicStats", { v: CONFIG.frontendVersion, t: Date.now() }, "GET", 18000),
-  ];
-
-  if (Promise.any) return Promise.any(requests);
-
-  return new Promise((resolve, reject) => {
-    let failures = 0;
-    requests.forEach((request) => {
-      request.then(resolve).catch((error) => {
-        failures += 1;
-        if (failures === requests.length) reject(error);
-      });
-    });
-  });
 }
 
 function observeReportCount() {
@@ -552,45 +532,6 @@ function applyBridgeFrameStyles(iframe) {
   iframe.style.height = "1px";
   iframe.style.opacity = "0.01";
   iframe.style.border = "0";
-}
-
-function appsScriptStatsBridge(timeoutMs = 18000) {
-  return new Promise((resolve, reject) => {
-    const requestId = `stats_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    const iframe = document.createElement("iframe");
-    let timeout = null;
-
-    function cleanup() {
-      window.removeEventListener("message", onMessage);
-      if (timeout) window.clearTimeout(timeout);
-      iframe.remove();
-    }
-
-    function onMessage(event) {
-      const data = event.data || {};
-      if (data.source !== "condoBuyabilityAppsScriptBridge" || data.requestId !== requestId) return;
-      cleanup();
-      resolve(data);
-    }
-
-    window.addEventListener("message", onMessage);
-    timeout = window.setTimeout(() => {
-      cleanup();
-      reject(new Error("Apps Script stats bridge timed out."));
-    }, timeoutMs);
-
-    const fullUrl = new URL(CONFIG.appsScriptUrl);
-    fullUrl.searchParams.set("action", "bridgePublicStats");
-    fullUrl.searchParams.set("bridgeRequestId", requestId);
-    fullUrl.searchParams.set("bridgeOrigin", window.location.origin);
-    fullUrl.searchParams.set("v", CONFIG.frontendVersion);
-    fullUrl.searchParams.set("t", String(Date.now()));
-
-    iframe.title = "Apps Script stats bridge";
-    applyBridgeFrameStyles(iframe);
-    iframe.src = fullUrl.toString();
-    document.body.appendChild(iframe);
-  });
 }
 
 function appsScriptBridge(action, params = {}, method = "GET", timeoutMs = 60000) {
