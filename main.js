@@ -2,7 +2,7 @@ const CONFIG = {
   // Replace this with your deployed Apps Script Web App URL.
   appsScriptUrl: "https://script.google.com/macros/s/AKfycbyjaUJFlShe-bg4jm3uOm3b4e7UviLe1jBL1TTMVXP1VDlFhfqkPu0nPapdmYQNh4sC4A/exec",
   whatsappNumber: "6583963088",
-  frontendVersion: "daily-count-request-state-2026-08-04-v49",
+  frontendVersion: "visible-log-tabs-duplicate-copy-2026-08-04-v50",
   defaultReportCount: 89,
   reportCountStartDate: "2026-08-04",
 };
@@ -354,9 +354,9 @@ function renderResult(lead, result) {
     reportMount.innerHTML = `
       <div class="manual-message">
         <p class="eyebrow">One free report per person</p>
-        <h3>You have already requested a free report before.</h3>
+        <h3>This free report has already been requested.</h3>
         <p>Each email or WhatsApp number is entitled to one free Condo Buyability Report.</p>
-        <p>If you would like to check another condo, please contact us directly.</p>
+        <p>If you would like to compare more condos, please contact us at <strong>+6583963088</strong>.</p>
         <a class="whatsapp-button" href="${duplicateWhatsappLink(lead, result)}" target="_blank" rel="noreferrer">WhatsApp Us</a>
       </div>`;
     scrollToResult();
