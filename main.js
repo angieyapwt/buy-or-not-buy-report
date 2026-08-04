@@ -2,7 +2,7 @@ const CONFIG = {
   // Replace this with your deployed Apps Script Web App URL.
   appsScriptUrl: "https://script.google.com/macros/s/AKfycbyjaUJFlShe-bg4jm3uOm3b4e7UviLe1jBL1TTMVXP1VDlFhfqkPu0nPapdmYQNh4sC4A/exec",
   whatsappNumber: "6583963088",
-  frontendVersion: "mobile-count-unified-jsonp-2026-08-04-v45",
+  frontendVersion: "mobile-count-visibility-fix-2026-08-04-v46",
   defaultReportCount: 153,
 };
 
@@ -187,8 +187,11 @@ function startReportCountAnimation() {
   reportCountVisible = true;
 
   reportCountStarted = true;
-  animateReportCount(CONFIG.defaultReportCount);
+  animateReportCount(reportCountResolved ? reportCountTarget : CONFIG.defaultReportCount);
   reportCountStatsPromise = reportCountStatsPromise || resolveReportCountTarget();
+  reportCountStatsPromise.then((target) => {
+    if (Number(target) > displayedReportCount) animateReportCount(target);
+  });
 }
 
 function animateReportCount(target) {
