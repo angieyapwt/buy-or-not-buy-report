@@ -2,7 +2,7 @@ const CONFIG = {
   // Replace this with your deployed Apps Script Web App URL.
   appsScriptUrl: "https://script.google.com/macros/s/AKfycbyjaUJFlShe-bg4jm3uOm3b4e7UviLe1jBL1TTMVXP1VDlFhfqkPu0nPapdmYQNh4sC4A/exec",
   whatsappNumber: "6583963088",
-  frontendVersion: "no-blind-fallback-lock-fix-2026-08-04-v41",
+  frontendVersion: "desktop-submit-timeout-fix-2026-08-04-v42",
   defaultReportCount: 153,
 };
 
@@ -262,15 +262,14 @@ async function handleSubmit(event) {
   isSubmitting = true;
   submitButton.textContent = "Sending report...";
   setStatus("Preparing your free report and sending it to your email...\nThis usually takes less than 20 seconds. Please do not refresh or go back.", "");
-  let optimisticSentTimer = null;
+  const optimisticSentTimer = window.setTimeout(() => {
+    if (!isSubmitting) return;
+    submitButton.textContent = "Still preparing...";
+    setStatus("Still preparing your report. Please keep this page open while we confirm the email status.", "");
+  }, 20000);
 
   try {
     if (CONFIG.appsScriptUrl && isMobileViewport()) {
-      optimisticSentTimer = window.setTimeout(() => {
-        if (!isSubmitting) return;
-        submitButton.textContent = "Still preparing...";
-        setStatus("Still preparing your report. Please keep this page open while we confirm the email status.", "");
-      }, 20000);
       const result = await submitToAppsScriptBridge(lead);
       if (result && result.ok === false) throw new Error(result.error || "Request failed");
       renderResult(lead, result);
@@ -339,7 +338,7 @@ function submitToAppsScript(lead) {
   return jsonp(CONFIG.appsScriptUrl, {
     action: "submitLead",
     payload: encodePayload(lead),
-  }, 45000);
+  }, 330000);
 }
 
 function submitToAppsScriptBridge(lead) {
