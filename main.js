@@ -2,7 +2,7 @@ const CONFIG = {
   // Replace this with your deployed Apps Script Web App URL.
   appsScriptUrl: "https://script.google.com/macros/s/AKfycbyjaUJFlShe-bg4jm3uOm3b4e7UviLe1jBL1TTMVXP1VDlFhfqkPu0nPapdmYQNh4sC4A/exec",
   whatsappNumber: "6583963088",
-  frontendVersion: "realtime-report-count-polling-2026-07-22-v40",
+  frontendVersion: "no-blind-fallback-lock-fix-2026-08-04-v41",
   defaultReportCount: 153,
 };
 
@@ -268,8 +268,8 @@ async function handleSubmit(event) {
     if (CONFIG.appsScriptUrl && isMobileViewport()) {
       optimisticSentTimer = window.setTimeout(() => {
         if (!isSubmitting) return;
-        submitButton.textContent = "Report emailed";
-        setStatus("Your PDF report has been sent to your email. Please check shortly.", "success");
+        submitButton.textContent = "Still preparing...";
+        setStatus("Still preparing your report. Please keep this page open while we confirm the email status.", "");
       }, 20000);
       const result = await submitToAppsScriptBridge(lead);
       if (result && result.ok === false) throw new Error(result.error || "Request failed");
@@ -301,18 +301,6 @@ async function handleSubmit(event) {
     );
     updateReportCountFromResult(result, !result.duplicate);
   } catch (error) {
-    if (CONFIG.appsScriptUrl) {
-      try {
-        submitToAppsScriptPostFallback(lead);
-        renderFallbackReceived(lead);
-        submitButton.textContent = "Report emailed";
-        setStatus("Your PDF report has been sent to your email.", "success");
-        incrementVisibleReportCount();
-        return;
-      } catch (fallbackError) {
-        notifyClientError(lead, fallbackError);
-      }
-    }
     notifyClientError(lead, error);
     showGenericError(error);
     submitButton.disabled = false;
@@ -359,37 +347,7 @@ function submitToAppsScriptBridge(lead) {
     payload: encodePayload(lead),
     submitMode: "postmessage-bridge",
     v: CONFIG.frontendVersion,
-  }, "POST", 60000);
-}
-
-async function submitToAppsScriptNoCors(lead) {
-  const body = new URLSearchParams();
-  body.set("action", "submitLead");
-  body.set("payload", encodePayload(lead));
-  body.set("submitMode", "no-cors-post");
-  body.set("v", CONFIG.frontendVersion);
-  await fetch(CONFIG.appsScriptUrl, {
-    method: "POST",
-    mode: "no-cors",
-    body,
-    keepalive: true,
-  });
-}
-
-function submitToAppsScriptPostFallback(lead) {
-  const fullUrl = new URL(CONFIG.appsScriptUrl);
-  fullUrl.searchParams.set("action", "submitLead");
-  fullUrl.searchParams.set("payload", encodePayload(lead));
-  fullUrl.searchParams.set("fallback", "image-beacon");
-  fullUrl.searchParams.set("v", CONFIG.frontendVersion);
-  fullUrl.searchParams.set("t", String(Date.now()));
-
-  const img = new Image();
-  img.alt = "";
-  img.style.display = "none";
-  img.src = fullUrl.toString();
-  document.body.appendChild(img);
-  window.setTimeout(() => img.remove(), 120000);
+  }, "POST", 330000);
 }
 
 function encodePayload(lead) {
@@ -436,23 +394,6 @@ function updateReportCountFromResult(result, shouldIncrementFallback) {
   }
 
   if (shouldIncrementFallback) incrementVisibleReportCount();
-}
-
-function renderMobileReportSent(lead) {
-  resultSection.hidden = false;
-  document.querySelector("#resultTitle").textContent = "Your report has been sent";
-  reportMount.innerHTML = `
-    <div class="manual-message">
-      <p class="eyebrow">Report sent</p>
-      <h3>Your Free Condo Buyability Report has been sent to your email.</h3>
-      <p>Please check <strong>${escapeHtml(lead.email)}</strong>.</p>
-      <a class="whatsapp-button" href="${whatsappLink(lead)}" target="_blank" rel="noreferrer">WhatsApp Us</a>
-    </div>`;
-  scrollToResult();
-}
-
-function renderFallbackReceived(lead) {
-  renderMobileReportSent(lead);
 }
 
 function renderResult(lead, result) {
