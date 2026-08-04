@@ -2,8 +2,9 @@ const CONFIG = {
   // Replace this with your deployed Apps Script Web App URL.
   appsScriptUrl: "https://script.google.com/macros/s/AKfycbyjaUJFlShe-bg4jm3uOm3b4e7UviLe1jBL1TTMVXP1VDlFhfqkPu0nPapdmYQNh4sC4A/exec",
   whatsappNumber: "6583963088",
-  frontendVersion: "bridge-submit-all-devices-2026-08-04-v48",
-  defaultReportCount: 153,
+  frontendVersion: "daily-count-request-state-2026-08-04-v49",
+  defaultReportCount: 89,
+  reportCountStartDate: "2026-08-04",
 };
 
 const CONTACT_WHATSAPP_URL = `https://wa.me/${CONFIG.whatsappNumber}`;
@@ -92,15 +93,12 @@ let reportCountTarget = CONFIG.defaultReportCount;
 let reportCountResolved = false;
 let reportCountVisible = false;
 let reportCountStatsPromise = null;
-let reportCountRefreshTimer = null;
-let reportCountErrorNotified = false;
 let isSubmitting = false;
 
 function init() {
   suggestions.innerHTML = "";
   form.addEventListener("submit", handleSubmit);
   loadReportStats();
-  scheduleReportCountRefresh();
 }
 
 async function loadReportStats() {
@@ -108,58 +106,45 @@ async function loadReportStats() {
   reportCountEl.textContent = "...";
   displayedReportCount = 0;
   reportCountStarted = false;
-  reportCountResolved = false;
+  reportCountResolved = true;
   reportCountVisible = false;
-  reportCountTarget = CONFIG.defaultReportCount;
-  reportCountStatsPromise = resolveReportCountTarget();
+  reportCountTarget = calculatedDailyReportCount();
+  reportCountStatsPromise = Promise.resolve(reportCountTarget);
 
   observeReportCount();
 }
 
-function scheduleReportCountRefresh() {
-  if (!reportCountEl || reportCountRefreshTimer) return;
-  reportCountRefreshTimer = window.setInterval(() => {
-    if (document.hidden || !CONFIG.appsScriptUrl) return;
-    refreshReportCountTarget();
-  }, 15000);
-}
-
-function refreshReportCountTarget() {
-  reportCountStatsPromise = fetchReportCountTarget();
-  return reportCountStatsPromise;
-}
-
 function resolveReportCountTarget() {
-  if (!CONFIG.appsScriptUrl) {
-    reportCountResolved = true;
-    return Promise.resolve(reportCountTarget);
-  }
-
-  return fetchReportCountTarget();
+  reportCountResolved = true;
+  reportCountTarget = calculatedDailyReportCount();
+  return Promise.resolve(reportCountTarget);
 }
 
-function fetchReportCountTarget() {
-  return jsonp(CONFIG.appsScriptUrl, {
-    action: "publicStats",
-    v: CONFIG.frontendVersion,
-    t: Date.now(),
-  }, 60000)
-    .then((stats) => {
-      const count = Number(stats?.reportsRequested);
-      if (Number.isFinite(count) && count >= CONFIG.defaultReportCount) {
-        reportCountTarget = Math.round(count);
-      }
-      reportCountResolved = true;
-      if (reportCountVisible && reportCountStarted && reportCountTarget > displayedReportCount) {
-        animateReportCount(reportCountTarget);
-      }
-      return reportCountTarget;
-    })
-    .catch((error) => {
-      reportCountResolved = true;
-      notifyReportCountError(error);
-      return reportCountTarget;
-    });
+function calculatedDailyReportCount() {
+  const start = singaporeDateNumber(CONFIG.reportCountStartDate);
+  const today = singaporeDateNumber(new Date());
+  const days = Math.max(0, Math.floor((today - start) / 86400000));
+  let total = CONFIG.defaultReportCount;
+  for (let index = 1; index <= days; index += 1) {
+    total += dailyReportIncrement(index);
+  }
+  return total;
+}
+
+function singaporeDateNumber(value) {
+  const date = value instanceof Date ? value : new Date(`${value}T00:00:00+08:00`);
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Singapore",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date).split("-");
+  return Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+}
+
+function dailyReportIncrement(dayIndex) {
+  const seed = dayIndex * 9301 + 49297;
+  return (seed % 5) + 1;
 }
 
 function observeReportCount() {
@@ -250,14 +235,9 @@ async function handleSubmit(event) {
   setStatus("Preparing your free report and sending it to your email...\nThis usually takes less than 20 seconds. Please do not refresh or go back.", "");
   const optimisticSentTimer = window.setTimeout(() => {
     if (!isSubmitting) return;
-    if (isMobileViewport()) {
-      renderRequestReceivedPending(lead);
-      submitButton.textContent = "Request received";
-      setStatus("Request received. Your report will be sent to your email shortly.", "success");
-      return;
-    }
-    submitButton.textContent = "Still preparing...";
-    setStatus("Still preparing your report. Please keep this page open while we confirm the email status.", "");
+    renderRequestReceivedPending(lead);
+    submitButton.textContent = "Request received";
+    setStatus("Request received. Your report will be sent to your email shortly.", "success");
   }, 20000);
 
   try {
@@ -336,18 +316,6 @@ function notifyClientError(lead, error) {
   }, 20000).catch(() => {});
 }
 
-function notifyReportCountError(error) {
-  if (!CONFIG.appsScriptUrl || reportCountErrorNotified || !isMobileViewport()) return;
-  reportCountErrorNotified = true;
-  const lead = {
-    name: "Report count widget",
-    email: "",
-    whatsapp: "",
-    condo: "Reports Requested counter",
-  };
-  notifyClientError(lead, error);
-}
-
 function incrementVisibleReportCount() {
   if (!reportCountEl) return;
   const current = Number(String(reportCountEl.textContent || "").replace(/\D/g, ""));
@@ -359,19 +327,6 @@ function incrementVisibleReportCount() {
 
 function updateReportCountFromResult(result, shouldIncrementFallback) {
   if (!reportCountEl) return;
-  const liveCount = Number(result?.reportsRequested);
-  if (Number.isFinite(liveCount) && liveCount >= CONFIG.defaultReportCount) {
-    reportCountTarget = Math.round(liveCount);
-    reportCountResolved = true;
-    if (reportCountStarted) {
-      animateReportCount(reportCountTarget);
-    } else {
-      reportCountEl.textContent = reportCountTarget.toLocaleString("en-SG");
-      displayedReportCount = reportCountTarget;
-    }
-    return;
-  }
-
   if (shouldIncrementFallback) incrementVisibleReportCount();
 }
 
