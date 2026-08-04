@@ -2,7 +2,7 @@ const CONFIG = {
   // Replace this with your deployed Apps Script Web App URL.
   appsScriptUrl: "https://script.google.com/macros/s/AKfycbyjaUJFlShe-bg4jm3uOm3b4e7UviLe1jBL1TTMVXP1VDlFhfqkPu0nPapdmYQNh4sC4A/exec",
   whatsappNumber: "6583963088",
-  frontendVersion: "mobile-count-visibility-fix-2026-08-04-v46",
+  frontendVersion: "bridge-submit-all-devices-2026-08-04-v48",
   defaultReportCount: 153,
 };
 
@@ -261,23 +261,6 @@ async function handleSubmit(event) {
   }, 20000);
 
   try {
-    if (CONFIG.appsScriptUrl && isMobileViewport()) {
-      const result = await submitToAppsScriptBridge(lead);
-      if (result && result.ok === false) throw new Error(result.error || "Request failed");
-      renderResult(lead, result);
-      submitButton.textContent = result.duplicate ? "Already requested" : result.found ? "Report emailed" : "Request received";
-      setStatus(
-        result.duplicate
-          ? "This email or WhatsApp number has already requested a free report."
-          : result.found
-          ? "Your PDF report has been sent to your email."
-          : "Request received. We will prepare this report manually and email you within 1–3 working days.",
-        result.duplicate ? "error" : "success",
-      );
-      updateReportCountFromResult(result, !result.duplicate);
-      return;
-    }
-
     const result = CONFIG.appsScriptUrl ? await submitToAppsScript(lead) : demoLookup(lead);
     if (result && result.ok === false) throw new Error(result.error || "Request failed");
     renderResult(lead, result);
@@ -327,13 +310,6 @@ function demoLookup(lead) {
 }
 
 function submitToAppsScript(lead) {
-  return jsonp(CONFIG.appsScriptUrl, {
-    action: "submitLead",
-    payload: encodePayload(lead),
-  }, 330000);
-}
-
-function submitToAppsScriptBridge(lead) {
   return appsScriptBridge("bridgeSubmitLead", {
     payload: encodePayload(lead),
     submitMode: "postmessage-bridge",
