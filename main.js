@@ -2,7 +2,7 @@ const CONFIG = {
   // Replace this with your deployed Apps Script Web App URL.
   appsScriptUrl: "https://script.google.com/macros/s/AKfycbyjaUJFlShe-bg4jm3uOm3b4e7UviLe1jBL1TTMVXP1VDlFhfqkPu0nPapdmYQNh4sC4A/exec",
   whatsappNumber: "6583963088",
-  frontendVersion: "desktop-submit-timeout-fix-2026-08-04-v42",
+  frontendVersion: "mobile-stats-iframe-fix-2026-08-04-v44",
   defaultReportCount: 153,
 };
 
@@ -93,6 +93,7 @@ let reportCountResolved = false;
 let reportCountVisible = false;
 let reportCountStatsPromise = null;
 let reportCountRefreshTimer = null;
+let reportCountErrorNotified = false;
 let isSubmitting = false;
 
 function init() {
@@ -154,16 +155,18 @@ function fetchReportCountTarget() {
       }
       return reportCountTarget;
     })
-    .catch(() => {
+    .catch((error) => {
       reportCountResolved = true;
+      notifyReportCountError(error);
       return reportCountTarget;
     });
 }
 
 function firstSuccessfulStatsRequest() {
   const requests = [
-    jsonp(CONFIG.appsScriptUrl, { action: "publicStats", v: CONFIG.frontendVersion }, 12000),
-    appsScriptBridge("bridgePublicStats", { v: CONFIG.frontendVersion }, "GET", 18000),
+    jsonp(CONFIG.appsScriptUrl, { action: "publicStats", v: CONFIG.frontendVersion, t: Date.now() }, 12000),
+    appsScriptStatsBridge(18000),
+    appsScriptBridge("bridgePublicStats", { v: CONFIG.frontendVersion, t: Date.now() }, "GET", 18000),
   ];
 
   if (Promise.any) return Promise.any(requests);
@@ -264,6 +267,12 @@ async function handleSubmit(event) {
   setStatus("Preparing your free report and sending it to your email...\nThis usually takes less than 20 seconds. Please do not refresh or go back.", "");
   const optimisticSentTimer = window.setTimeout(() => {
     if (!isSubmitting) return;
+    if (isMobileViewport()) {
+      renderRequestReceivedPending(lead);
+      submitButton.textContent = "Request received";
+      setStatus("Request received. Your report will be sent to your email shortly.", "success");
+      return;
+    }
     submitButton.textContent = "Still preparing...";
     setStatus("Still preparing your report. Please keep this page open while we confirm the email status.", "");
   }, 20000);
@@ -368,6 +377,18 @@ function notifyClientError(lead, error) {
   }, 20000).catch(() => {});
 }
 
+function notifyReportCountError(error) {
+  if (!CONFIG.appsScriptUrl || reportCountErrorNotified || !isMobileViewport()) return;
+  reportCountErrorNotified = true;
+  const lead = {
+    name: "Report count widget",
+    email: "",
+    whatsapp: "",
+    condo: "Reports Requested counter",
+  };
+  notifyClientError(lead, error);
+}
+
 function incrementVisibleReportCount() {
   if (!reportCountEl) return;
   const current = Number(String(reportCountEl.textContent || "").replace(/\D/g, ""));
@@ -393,6 +414,22 @@ function updateReportCountFromResult(result, shouldIncrementFallback) {
   }
 
   if (shouldIncrementFallback) incrementVisibleReportCount();
+}
+
+function renderRequestReceivedPending(lead) {
+  resultSection.hidden = false;
+  document.querySelector("#resultTitle").textContent = "Request received";
+  reportMount.innerHTML = `
+    <div class="manual-message">
+      <p class="eyebrow">Report request</p>
+      <h3>Your request has been received.</h3>
+      <p>
+        We are preparing your Condo Buyability Report and sending it to
+        <strong>${escapeHtml(lead.email)}</strong>. Please check your email shortly.
+      </p>
+      <a class="whatsapp-button" href="${whatsappLink(lead)}" target="_blank" rel="noreferrer">WhatsApp Us</a>
+    </div>`;
+  scrollToResult();
 }
 
 function renderResult(lead, result) {
@@ -504,6 +541,58 @@ function scrollToResult() {
   resultSection.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+function applyBridgeFrameStyles(iframe) {
+  iframe.width = "1";
+  iframe.height = "1";
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.style.position = "absolute";
+  iframe.style.left = "-9999px";
+  iframe.style.top = "0";
+  iframe.style.width = "1px";
+  iframe.style.height = "1px";
+  iframe.style.opacity = "0.01";
+  iframe.style.border = "0";
+}
+
+function appsScriptStatsBridge(timeoutMs = 18000) {
+  return new Promise((resolve, reject) => {
+    const requestId = `stats_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const iframe = document.createElement("iframe");
+    let timeout = null;
+
+    function cleanup() {
+      window.removeEventListener("message", onMessage);
+      if (timeout) window.clearTimeout(timeout);
+      iframe.remove();
+    }
+
+    function onMessage(event) {
+      const data = event.data || {};
+      if (data.source !== "condoBuyabilityAppsScriptBridge" || data.requestId !== requestId) return;
+      cleanup();
+      resolve(data);
+    }
+
+    window.addEventListener("message", onMessage);
+    timeout = window.setTimeout(() => {
+      cleanup();
+      reject(new Error("Apps Script stats bridge timed out."));
+    }, timeoutMs);
+
+    const fullUrl = new URL(CONFIG.appsScriptUrl);
+    fullUrl.searchParams.set("action", "bridgePublicStats");
+    fullUrl.searchParams.set("bridgeRequestId", requestId);
+    fullUrl.searchParams.set("bridgeOrigin", window.location.origin);
+    fullUrl.searchParams.set("v", CONFIG.frontendVersion);
+    fullUrl.searchParams.set("t", String(Date.now()));
+
+    iframe.title = "Apps Script stats bridge";
+    applyBridgeFrameStyles(iframe);
+    iframe.src = fullUrl.toString();
+    document.body.appendChild(iframe);
+  });
+}
+
 function appsScriptBridge(action, params = {}, method = "GET", timeoutMs = 60000) {
   return new Promise((resolve, reject) => {
     const requestId = `bridge_${Date.now()}_${Math.random().toString(36).slice(2)}`;
@@ -528,7 +617,7 @@ function appsScriptBridge(action, params = {}, method = "GET", timeoutMs = 60000
 
     iframe.name = frameName;
     iframe.title = "Apps Script response bridge";
-    iframe.style.display = "none";
+    applyBridgeFrameStyles(iframe);
     document.body.appendChild(iframe);
     window.addEventListener("message", onMessage);
 
