@@ -2,7 +2,7 @@ const CONFIG = {
   // Replace this with your deployed Apps Script Web App URL.
   appsScriptUrl: "https://script.google.com/macros/s/AKfycbyjaUJFlShe-bg4jm3uOm3b4e7UviLe1jBL1TTMVXP1VDlFhfqkPu0nPapdmYQNh4sC4A/exec",
   whatsappNumber: "6583963088",
-  frontendVersion: "rollback-desktop-stable-mobile-duplicate-fast-2026-08-05-v57",
+  frontendVersion: "mobile-duplicate-result-rescue-2026-08-05-v58",
   defaultReportCount: 89,
   reportCountStartDate: "2026-08-04",
 };
@@ -249,6 +249,10 @@ async function handleSubmit(event) {
     setStatus("Preparing your free report and sending it to your email...\nThis usually takes less than 20 seconds. Please do not refresh or go back.", "");
     optimisticSentTimer = window.setTimeout(() => {
       if (!isSubmitting) return;
+      if (isMobileViewport()) {
+        renderMobileDuplicateOrPending(lead);
+        return;
+      }
       renderRequestReceivedPending(lead);
       submitButton.textContent = "Request received";
       setStatus("Request received. Your report will be sent to your email shortly.", "success");
@@ -311,13 +315,13 @@ function submitToAppsScript(lead) {
   }, "POST", 330000);
 }
 
-async function checkDuplicateBeforeSubmit(lead) {
+async function checkDuplicateBeforeSubmit(lead, timeoutMs = 20000) {
   try {
     const result = await jsonp(CONFIG.appsScriptUrl, {
       action: "checkDuplicate",
       payload: encodePayload(lead),
       v: CONFIG.frontendVersion,
-    }, 20000);
+    }, timeoutMs);
 
     if (result && (result.status === "DUPLICATE_BLOCKED" || result.status === "NOT_DUPLICATE")) return result;
   } catch (error) {
@@ -325,6 +329,21 @@ async function checkDuplicateBeforeSubmit(lead) {
   }
 
   return { ok: true, duplicate: false, status: "DUPLICATE_CHECK_SKIPPED" };
+}
+
+async function renderMobileDuplicateOrPending(lead) {
+  const duplicateCheck = await checkDuplicateBeforeSubmit(lead, 8000);
+  if (duplicateCheck && duplicateCheck.duplicate) {
+    renderResult(lead, duplicateCheck);
+    notifyDuplicateAgentInBackground(lead, duplicateCheck);
+    submitButton.textContent = "Already requested";
+    setStatus("One report per person.", "error");
+    return;
+  }
+
+  renderRequestReceivedPending(lead);
+  submitButton.textContent = "Request received";
+  setStatus("Request received. Your report will be sent to your email shortly.", "success");
 }
 
 function notifyDuplicateAgentInBackground(lead, result) {
