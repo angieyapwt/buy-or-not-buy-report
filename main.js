@@ -2,7 +2,7 @@ const CONFIG = {
   // Replace this with your deployed Apps Script Web App URL.
   appsScriptUrl: "https://script.google.com/macros/s/AKfycbyjaUJFlShe-bg4jm3uOm3b4e7UviLe1jBL1TTMVXP1VDlFhfqkPu0nPapdmYQNh4sC4A/exec",
   whatsappNumber: "6583963088",
-  frontendVersion: "duplicate-webapp-only-message-2026-08-04-v51",
+  frontendVersion: "duplicate-precheck-webapp-message-2026-08-05-v52",
   defaultReportCount: 89,
   reportCountStartDate: "2026-08-04",
 };
@@ -231,16 +231,28 @@ async function handleSubmit(event) {
 
   submitButton.disabled = true;
   isSubmitting = true;
-  submitButton.textContent = "Sending report...";
-  setStatus("Preparing your free report and sending it to your email...\nThis usually takes less than 20 seconds. Please do not refresh or go back.", "");
-  const optimisticSentTimer = window.setTimeout(() => {
-    if (!isSubmitting) return;
-    renderRequestReceivedPending(lead);
-    submitButton.textContent = "Request received";
-    setStatus("Request received. Your report will be sent to your email shortly.", "success");
-  }, 20000);
+  submitButton.textContent = "Checking request...";
+  setStatus("Checking your request...", "");
+  let optimisticSentTimer = null;
 
   try {
+    const duplicateCheck = CONFIG.appsScriptUrl ? await checkDuplicateBeforeSubmit(lead) : { duplicate: false };
+    if (duplicateCheck && duplicateCheck.duplicate) {
+      renderResult(lead, duplicateCheck);
+      submitButton.textContent = "Already requested";
+      setStatus("One free report per user. Please contact us at +6583963088 if you would like to compare more condos.", "error");
+      return;
+    }
+
+    submitButton.textContent = "Sending report...";
+    setStatus("Preparing your free report and sending it to your email...\nThis usually takes less than 20 seconds. Please do not refresh or go back.", "");
+    optimisticSentTimer = window.setTimeout(() => {
+      if (!isSubmitting) return;
+      renderRequestReceivedPending(lead);
+      submitButton.textContent = "Request received";
+      setStatus("Request received. Your report will be sent to your email shortly.", "success");
+    }, 30000);
+
     const result = CONFIG.appsScriptUrl ? await submitToAppsScript(lead) : demoLookup(lead);
     if (result && result.ok === false) throw new Error(result.error || "Request failed");
     renderResult(lead, result);
@@ -295,6 +307,14 @@ function submitToAppsScript(lead) {
     submitMode: "postmessage-bridge",
     v: CONFIG.frontendVersion,
   }, "POST", 330000);
+}
+
+function checkDuplicateBeforeSubmit(lead) {
+  return jsonp(CONFIG.appsScriptUrl, {
+    action: "checkDuplicate",
+    payload: encodePayload(lead),
+    v: CONFIG.frontendVersion,
+  }, 45000);
 }
 
 function encodePayload(lead) {
