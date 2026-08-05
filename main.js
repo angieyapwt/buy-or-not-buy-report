@@ -2,7 +2,7 @@ const CONFIG = {
   // Replace this with your deployed Apps Script Web App URL.
   appsScriptUrl: "https://script.google.com/macros/s/AKfycbyjaUJFlShe-bg4jm3uOm3b4e7UviLe1jBL1TTMVXP1VDlFhfqkPu0nPapdmYQNh4sC4A/exec",
   whatsappNumber: "6583963088",
-  frontendVersion: "mobile-duplicate-result-rescue-2026-08-05-v58",
+  frontendVersion: "late-timeout-preserve-result-2026-08-05-v59",
   defaultReportCount: 89,
   reportCountStartDate: "2026-08-04",
 };
@@ -94,6 +94,7 @@ let reportCountResolved = false;
 let reportCountVisible = false;
 let reportCountStatsPromise = null;
 let isSubmitting = false;
+let terminalResultShown = false;
 
 function init() {
   suggestions.innerHTML = "";
@@ -231,6 +232,7 @@ async function handleSubmit(event) {
 
   submitButton.disabled = true;
   isSubmitting = true;
+  terminalResultShown = false;
   submitButton.textContent = "Checking request...";
   setStatus("Checking your request...", "");
   let optimisticSentTimer = null;
@@ -254,6 +256,7 @@ async function handleSubmit(event) {
         return;
       }
       renderRequestReceivedPending(lead);
+      terminalResultShown = true;
       submitButton.textContent = "Request received";
       setStatus("Request received. Your report will be sent to your email shortly.", "success");
     }, 21000);
@@ -261,6 +264,7 @@ async function handleSubmit(event) {
     const result = CONFIG.appsScriptUrl ? await submitToAppsScript(lead) : demoLookup(lead);
     if (result && result.ok === false) throw new Error(result.error || "Request failed");
     renderResult(lead, result);
+    terminalResultShown = true;
     if (result.duplicate) notifyDuplicateAgentInBackground(lead, result);
     submitButton.textContent = result.duplicate ? "Already requested" : result.found ? "Report emailed" : "Request received";
     setStatus(
@@ -274,6 +278,11 @@ async function handleSubmit(event) {
     updateReportCountFromResult(result, !result.duplicate);
   } catch (error) {
     notifyClientError(lead, error);
+    if (terminalResultShown) {
+      submitButton.disabled = true;
+      submitButton.textContent = "Request received";
+      return;
+    }
     showGenericError(error);
     submitButton.disabled = false;
     submitButton.textContent = "Get My Instant Report";
@@ -335,6 +344,7 @@ async function renderMobileDuplicateOrPending(lead) {
   const duplicateCheck = await checkDuplicateBeforeSubmit(lead, 8000);
   if (duplicateCheck && duplicateCheck.duplicate) {
     renderResult(lead, duplicateCheck);
+    terminalResultShown = true;
     notifyDuplicateAgentInBackground(lead, duplicateCheck);
     submitButton.textContent = "Already requested";
     setStatus("One report per person.", "error");
@@ -342,6 +352,7 @@ async function renderMobileDuplicateOrPending(lead) {
   }
 
   renderRequestReceivedPending(lead);
+  terminalResultShown = true;
   submitButton.textContent = "Request received";
   setStatus("Request received. Your report will be sent to your email shortly.", "success");
 }
