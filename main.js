@@ -2,7 +2,7 @@ const CONFIG = {
   // Replace this with your deployed Apps Script Web App URL.
   appsScriptUrl: "https://script.google.com/macros/s/AKfycbyjaUJFlShe-bg4jm3uOm3b4e7UviLe1jBL1TTMVXP1VDlFhfqkPu0nPapdmYQNh4sC4A/exec",
   whatsappNumber: "6583963088",
-  frontendVersion: "fast-duplicate-mobile-21s-fallback-2026-08-05-v55",
+  frontendVersion: "mobile-bridge-duplicate-precheck-2026-08-05-v56",
   defaultReportCount: 89,
   reportCountStartDate: "2026-08-04",
 };
@@ -241,7 +241,7 @@ async function handleSubmit(event) {
       renderResult(lead, duplicateCheck);
       notifyDuplicateAgentInBackground(lead, duplicateCheck);
       submitButton.textContent = "Already requested";
-      setStatus("One free report per user.", "error");
+      setStatus("One report per person.", "error");
       return;
     }
 
@@ -260,7 +260,7 @@ async function handleSubmit(event) {
     submitButton.textContent = result.duplicate ? "Already requested" : result.found ? "Report emailed" : "Request received";
     setStatus(
       result.duplicate
-        ? "One free report per user."
+        ? "One report per person."
         : result.found
         ? "Your PDF report has been sent to your email."
         : "Request received. We will prepare this report manually and email you within 1–3 working days.",
@@ -312,11 +312,10 @@ function submitToAppsScript(lead) {
 
 async function checkDuplicateBeforeSubmit(lead) {
   try {
-    const result = await jsonp(CONFIG.appsScriptUrl, {
-      action: "checkDuplicate",
+    const result = await appsScriptBridge("bridgeCheckDuplicate", {
       payload: encodePayload(lead),
       v: CONFIG.frontendVersion,
-    }, 20000);
+    }, "POST", 45000);
 
     if (result && (result.status === "DUPLICATE_BLOCKED" || result.status === "NOT_DUPLICATE")) return result;
   } catch (error) {
@@ -328,12 +327,11 @@ async function checkDuplicateBeforeSubmit(lead) {
 
 function notifyDuplicateAgentInBackground(lead, result) {
   if (!CONFIG.appsScriptUrl) return;
-  jsonp(CONFIG.appsScriptUrl, {
-    action: "duplicateAgentNotice",
+  appsScriptBridge("bridgeDuplicateAgentNotice", {
     payload: encodePayload(lead),
     matchedDevelopment: result.matchedDevelopment || lead.condo,
     v: CONFIG.frontendVersion,
-  }, 30000).catch(() => {});
+  }, "POST", 45000).catch(() => {});
 }
 
 function encodePayload(lead) {
@@ -393,8 +391,11 @@ function renderResult(lead, result) {
     reportMount.innerHTML = `
       <div class="manual-message">
         <p class="eyebrow">One free report per person</p>
-        <h3>One free report per user.</h3>
-        <p>If you would like to compare more condos, please contact us at <strong>+6583963088</strong>.</p>
+        <h3>One report per person.</h3>
+        <p>
+          If you would like to compare more condos, please contact us at
+          <a href="${CONTACT_WHATSAPP_URL}" target="_blank" rel="noreferrer"><strong>+6583963088</strong></a>.
+        </p>
         <a class="whatsapp-button" href="${duplicateWhatsappLink(lead, result)}" target="_blank" rel="noreferrer">WhatsApp Us</a>
       </div>`;
     scrollToResult();
