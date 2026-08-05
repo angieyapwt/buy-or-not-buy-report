@@ -2,7 +2,7 @@ const CONFIG = {
   // Replace this with your deployed Apps Script Web App URL.
   appsScriptUrl: "https://script.google.com/macros/s/AKfycbyjaUJFlShe-bg4jm3uOm3b4e7UviLe1jBL1TTMVXP1VDlFhfqkPu0nPapdmYQNh4sC4A/exec",
   whatsappNumber: "6583963088",
-  frontendVersion: "report-sent-fallback-message-2026-08-05-v53",
+  frontendVersion: "duplicate-precheck-safe-normal-submit-2026-08-05-v54",
   defaultReportCount: 89,
   reportCountStartDate: "2026-08-04",
 };
@@ -248,9 +248,9 @@ async function handleSubmit(event) {
     setStatus("Preparing your free report and sending it to your email...\nThis usually takes less than 20 seconds. Please do not refresh or go back.", "");
     optimisticSentTimer = window.setTimeout(() => {
       if (!isSubmitting) return;
-      renderReportSentFallback(lead);
-      submitButton.textContent = "Report emailed";
-      setStatus("Your PDF report has been sent to your email.", "success");
+      renderRequestReceivedPending(lead);
+      submitButton.textContent = "Request received";
+      setStatus("Request received. Your report will be sent to your email shortly.", "success");
     }, 30000);
 
     const result = CONFIG.appsScriptUrl ? await submitToAppsScript(lead) : demoLookup(lead);
@@ -309,12 +309,20 @@ function submitToAppsScript(lead) {
   }, "POST", 330000);
 }
 
-function checkDuplicateBeforeSubmit(lead) {
-  return jsonp(CONFIG.appsScriptUrl, {
-    action: "checkDuplicate",
-    payload: encodePayload(lead),
-    v: CONFIG.frontendVersion,
-  }, 45000);
+async function checkDuplicateBeforeSubmit(lead) {
+  try {
+    const result = await jsonp(CONFIG.appsScriptUrl, {
+      action: "checkDuplicate",
+      payload: encodePayload(lead),
+      v: CONFIG.frontendVersion,
+    }, 20000);
+
+    if (result && (result.status === "DUPLICATE_BLOCKED" || result.status === "NOT_DUPLICATE")) return result;
+  } catch (error) {
+    console.warn("Duplicate pre-check skipped:", error);
+  }
+
+  return { ok: true, duplicate: false, status: "DUPLICATE_CHECK_SKIPPED" };
 }
 
 function encodePayload(lead) {
@@ -350,15 +358,16 @@ function updateReportCountFromResult(result, shouldIncrementFallback) {
   if (shouldIncrementFallback) incrementVisibleReportCount();
 }
 
-function renderReportSentFallback(lead) {
+function renderRequestReceivedPending(lead) {
   resultSection.hidden = false;
-  document.querySelector("#resultTitle").textContent = "Your report has been sent";
+  document.querySelector("#resultTitle").textContent = "Request received";
   reportMount.innerHTML = `
     <div class="manual-message">
-      <p class="eyebrow">Report sent</p>
-      <h3>Your Free Condo Buyability Report has been sent to your email.</h3>
+      <p class="eyebrow">Report request</p>
+      <h3>Your request has been received.</h3>
       <p>
-        Please check <strong>${escapeHtml(lead.email)}</strong>.
+        We are preparing your Condo Buyability Report and sending it to
+        <strong>${escapeHtml(lead.email)}</strong>. Please check your email shortly.
       </p>
       <a class="whatsapp-button" href="${whatsappLink(lead)}" target="_blank" rel="noreferrer">WhatsApp Us</a>
     </div>`;
