@@ -2,7 +2,7 @@ const CONFIG = {
   // Replace this with your deployed Apps Script Web App URL.
   appsScriptUrl: "https://script.google.com/macros/s/AKfycbyjaUJFlShe-bg4jm3uOm3b4e7UviLe1jBL1TTMVXP1VDlFhfqkPu0nPapdmYQNh4sC4A/exec",
   whatsappNumber: "6583963088",
-  frontendVersion: "mobile-bridge-duplicate-precheck-2026-08-05-v56",
+  frontendVersion: "rollback-desktop-stable-mobile-duplicate-fast-2026-08-05-v57",
   defaultReportCount: 89,
   reportCountStartDate: "2026-08-04",
 };
@@ -257,6 +257,7 @@ async function handleSubmit(event) {
     const result = CONFIG.appsScriptUrl ? await submitToAppsScript(lead) : demoLookup(lead);
     if (result && result.ok === false) throw new Error(result.error || "Request failed");
     renderResult(lead, result);
+    if (result.duplicate) notifyDuplicateAgentInBackground(lead, result);
     submitButton.textContent = result.duplicate ? "Already requested" : result.found ? "Report emailed" : "Request received";
     setStatus(
       result.duplicate
@@ -312,10 +313,11 @@ function submitToAppsScript(lead) {
 
 async function checkDuplicateBeforeSubmit(lead) {
   try {
-    const result = await appsScriptBridge("bridgeCheckDuplicate", {
+    const result = await jsonp(CONFIG.appsScriptUrl, {
+      action: "checkDuplicate",
       payload: encodePayload(lead),
       v: CONFIG.frontendVersion,
-    }, "POST", 45000);
+    }, 20000);
 
     if (result && (result.status === "DUPLICATE_BLOCKED" || result.status === "NOT_DUPLICATE")) return result;
   } catch (error) {
@@ -327,11 +329,12 @@ async function checkDuplicateBeforeSubmit(lead) {
 
 function notifyDuplicateAgentInBackground(lead, result) {
   if (!CONFIG.appsScriptUrl) return;
-  appsScriptBridge("bridgeDuplicateAgentNotice", {
+  jsonp(CONFIG.appsScriptUrl, {
+    action: "duplicateAgentNotice",
     payload: encodePayload(lead),
     matchedDevelopment: result.matchedDevelopment || lead.condo,
     v: CONFIG.frontendVersion,
-  }, "POST", 45000).catch(() => {});
+  }, 30000).catch(() => {});
 }
 
 function encodePayload(lead) {
