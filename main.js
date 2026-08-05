@@ -2,7 +2,7 @@ const CONFIG = {
   // Replace this with your deployed Apps Script Web App URL.
   appsScriptUrl: "https://script.google.com/macros/s/AKfycbyjaUJFlShe-bg4jm3uOm3b4e7UviLe1jBL1TTMVXP1VDlFhfqkPu0nPapdmYQNh4sC4A/exec",
   whatsappNumber: "6583963088",
-  frontendVersion: "duplicate-precheck-safe-normal-submit-2026-08-05-v54",
+  frontendVersion: "fast-duplicate-mobile-21s-fallback-2026-08-05-v55",
   defaultReportCount: 89,
   reportCountStartDate: "2026-08-04",
 };
@@ -239,8 +239,9 @@ async function handleSubmit(event) {
     const duplicateCheck = CONFIG.appsScriptUrl ? await checkDuplicateBeforeSubmit(lead) : { duplicate: false };
     if (duplicateCheck && duplicateCheck.duplicate) {
       renderResult(lead, duplicateCheck);
+      notifyDuplicateAgentInBackground(lead, duplicateCheck);
       submitButton.textContent = "Already requested";
-      setStatus("One free report per user. Please contact us at +6583963088 if you would like to compare more condos.", "error");
+      setStatus("One free report per user.", "error");
       return;
     }
 
@@ -251,7 +252,7 @@ async function handleSubmit(event) {
       renderRequestReceivedPending(lead);
       submitButton.textContent = "Request received";
       setStatus("Request received. Your report will be sent to your email shortly.", "success");
-    }, 30000);
+    }, 21000);
 
     const result = CONFIG.appsScriptUrl ? await submitToAppsScript(lead) : demoLookup(lead);
     if (result && result.ok === false) throw new Error(result.error || "Request failed");
@@ -259,7 +260,7 @@ async function handleSubmit(event) {
     submitButton.textContent = result.duplicate ? "Already requested" : result.found ? "Report emailed" : "Request received";
     setStatus(
       result.duplicate
-        ? "One free report per user. Please contact us at +6583963088 if you would like to compare more condos."
+        ? "One free report per user."
         : result.found
         ? "Your PDF report has been sent to your email."
         : "Request received. We will prepare this report manually and email you within 1–3 working days.",
@@ -325,6 +326,16 @@ async function checkDuplicateBeforeSubmit(lead) {
   return { ok: true, duplicate: false, status: "DUPLICATE_CHECK_SKIPPED" };
 }
 
+function notifyDuplicateAgentInBackground(lead, result) {
+  if (!CONFIG.appsScriptUrl) return;
+  jsonp(CONFIG.appsScriptUrl, {
+    action: "duplicateAgentNotice",
+    payload: encodePayload(lead),
+    matchedDevelopment: result.matchedDevelopment || lead.condo,
+    v: CONFIG.frontendVersion,
+  }, 30000).catch(() => {});
+}
+
 function encodePayload(lead) {
   return btoa(unescape(encodeURIComponent(JSON.stringify(lead))));
 }
@@ -383,7 +394,6 @@ function renderResult(lead, result) {
       <div class="manual-message">
         <p class="eyebrow">One free report per person</p>
         <h3>One free report per user.</h3>
-        <p>This email or WhatsApp number has already requested a free Condo Buyability Report.</p>
         <p>If you would like to compare more condos, please contact us at <strong>+6583963088</strong>.</p>
         <a class="whatsapp-button" href="${duplicateWhatsappLink(lead, result)}" target="_blank" rel="noreferrer">WhatsApp Us</a>
       </div>`;
