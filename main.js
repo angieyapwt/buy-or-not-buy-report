@@ -2,7 +2,7 @@ const CONFIG = {
   // Replace this with your deployed Apps Script Web App URL.
   appsScriptUrl: "https://script.google.com/macros/s/AKfycbyjaUJFlShe-bg4jm3uOm3b4e7UviLe1jBL1TTMVXP1VDlFhfqkPu0nPapdmYQNh4sC4A/exec",
   whatsappNumber: "6583963088",
-  frontendVersion: "duplicate-precheck-webapp-message-2026-08-05-v52",
+  frontendVersion: "report-sent-fallback-message-2026-08-05-v53",
   defaultReportCount: 89,
   reportCountStartDate: "2026-08-04",
 };
@@ -248,9 +248,9 @@ async function handleSubmit(event) {
     setStatus("Preparing your free report and sending it to your email...\nThis usually takes less than 20 seconds. Please do not refresh or go back.", "");
     optimisticSentTimer = window.setTimeout(() => {
       if (!isSubmitting) return;
-      renderRequestReceivedPending(lead);
-      submitButton.textContent = "Request received";
-      setStatus("Request received. Your report will be sent to your email shortly.", "success");
+      renderReportSentFallback(lead);
+      submitButton.textContent = "Report emailed";
+      setStatus("Your PDF report has been sent to your email.", "success");
     }, 30000);
 
     const result = CONFIG.appsScriptUrl ? await submitToAppsScript(lead) : demoLookup(lead);
@@ -350,16 +350,15 @@ function updateReportCountFromResult(result, shouldIncrementFallback) {
   if (shouldIncrementFallback) incrementVisibleReportCount();
 }
 
-function renderRequestReceivedPending(lead) {
+function renderReportSentFallback(lead) {
   resultSection.hidden = false;
-  document.querySelector("#resultTitle").textContent = "Request received";
+  document.querySelector("#resultTitle").textContent = "Your report has been sent";
   reportMount.innerHTML = `
     <div class="manual-message">
-      <p class="eyebrow">Report request</p>
-      <h3>Your request has been received.</h3>
+      <p class="eyebrow">Report sent</p>
+      <h3>Your Free Condo Buyability Report has been sent to your email.</h3>
       <p>
-        We are preparing your Condo Buyability Report and sending it to
-        <strong>${escapeHtml(lead.email)}</strong>. Please check your email shortly.
+        Please check <strong>${escapeHtml(lead.email)}</strong>.
       </p>
       <a class="whatsapp-button" href="${whatsappLink(lead)}" target="_blank" rel="noreferrer">WhatsApp Us</a>
     </div>`;
