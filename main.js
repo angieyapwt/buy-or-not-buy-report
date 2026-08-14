@@ -2,7 +2,7 @@ const CONFIG = {
   // Replace this with your deployed Apps Script Web App URL.
   appsScriptUrl: "https://script.google.com/macros/s/AKfycbyjaUJFlShe-bg4jm3uOm3b4e7UviLe1jBL1TTMVXP1VDlFhfqkPu0nPapdmYQNh4sC4A/exec",
   whatsappNumber: "6583963088",
-  frontendVersion: "late-timeout-preserve-result-2026-08-05-v59",
+  frontendVersion: "late-timeout-no-false-error-2026-08-14-v60",
   defaultReportCount: 89,
   reportCountStartDate: "2026-08-04",
 };
@@ -277,12 +277,12 @@ async function handleSubmit(event) {
     );
     updateReportCountFromResult(result, !result.duplicate);
   } catch (error) {
-    notifyClientError(lead, error);
     if (terminalResultShown) {
       submitButton.disabled = true;
       submitButton.textContent = "Request received";
       return;
     }
+    notifyClientError(lead, error);
     showGenericError(error);
     submitButton.disabled = false;
     submitButton.textContent = "Get My Instant Report";
