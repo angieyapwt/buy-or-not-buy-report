@@ -2,12 +2,12 @@ const CONFIG = {
   // Replace this with your deployed Apps Script Web App URL.
   appsScriptUrl: "https://script.google.com/macros/s/AKfycbyjaUJFlShe-bg4jm3uOm3b4e7UviLe1jBL1TTMVXP1VDlFhfqkPu0nPapdmYQNh4sC4A/exec",
   whatsappNumber: "6583963088",
-  frontendVersion: "meta-ga4-valid-submit-lead-2026-09-03-v62",
+  frontendVersion: "buyability-generation-pixel-2026-09-03-v64",
   defaultReportCount: 89,
   reportCountStartDate: "2026-08-04",
   // Create these in Meta Events Manager and Google Analytics, then paste the IDs here.
   // Leave either value blank to disable that platform without breaking the form.
-  metaPixelId: "1790530228953153",
+  metaPixelId: "1073030562320651",
   googleAnalyticsId: "G-QJNJLYXF3G",
 };
 
