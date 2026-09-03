@@ -2,7 +2,7 @@ const CONFIG = {
   // Replace this with your deployed Apps Script Web App URL.
   appsScriptUrl: "https://script.google.com/macros/s/AKfycbyjaUJFlShe-bg4jm3uOm3b4e7UviLe1jBL1TTMVXP1VDlFhfqkPu0nPapdmYQNh4sC4A/exec",
   whatsappNumber: "6583963088",
-  frontendVersion: "meta-ga4-tracking-2026-09-03-v61",
+  frontendVersion: "meta-ga4-valid-submit-lead-2026-09-03-v62",
   defaultReportCount: 89,
   reportCountStartDate: "2026-08-04",
   // Create these in Meta Events Manager and Google Analytics, then paste the IDs here.
@@ -167,8 +167,8 @@ function trackReportButtonClick() {
   trackGa("get_report_button_click", { form_name: "Buyability Report" });
 }
 
-function trackSuccessfulLead(result) {
-  if (successfulLeadTracked || !result || result.duplicate || result.ok === false) return;
+function trackValidatedLead() {
+  if (successfulLeadTracked) return;
   successfulLeadTracked = true;
   trackMeta("track", "Lead", { content_name: "Buyability Report" });
   trackGa("generate_lead", { form_name: "Buyability Report" });
@@ -309,6 +309,10 @@ async function handleSubmit(event) {
     return;
   }
 
+  // Count a conversion as soon as a complete, valid form is submitted.
+  // This does not wait for the email/report-generation backend to finish.
+  trackValidatedLead();
+
   submitButton.disabled = true;
   isSubmitting = true;
   terminalResultShown = false;
@@ -342,7 +346,6 @@ async function handleSubmit(event) {
 
     const result = CONFIG.appsScriptUrl ? await submitToAppsScript(lead) : demoLookup(lead);
     if (result && result.ok === false) throw new Error(result.error || "Request failed");
-    trackSuccessfulLead(result);
     renderResult(lead, result);
     terminalResultShown = true;
     if (result.duplicate) notifyDuplicateAgentInBackground(lead, result);
