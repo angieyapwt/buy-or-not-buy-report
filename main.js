@@ -7,8 +7,8 @@ const CONFIG = {
   reportCountStartDate: "2026-08-04",
   // Create these in Meta Events Manager and Google Analytics, then paste the IDs here.
   // Leave either value blank to disable that platform without breaking the form.
-  metaPixelId: "",
-  googleAnalyticsId: "",
+  metaPixelId: "1790530228953153",
+  googleAnalyticsId: "G-QJNJLYXF3G",
 };
 
 const CONTACT_WHATSAPP_URL = `https://wa.me/${CONFIG.whatsappNumber}`;
