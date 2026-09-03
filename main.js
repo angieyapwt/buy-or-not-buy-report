@@ -2,9 +2,13 @@ const CONFIG = {
   // Replace this with your deployed Apps Script Web App URL.
   appsScriptUrl: "https://script.google.com/macros/s/AKfycbyjaUJFlShe-bg4jm3uOm3b4e7UviLe1jBL1TTMVXP1VDlFhfqkPu0nPapdmYQNh4sC4A/exec",
   whatsappNumber: "6583963088",
-  frontendVersion: "late-timeout-no-false-error-2026-08-14-v60",
+  frontendVersion: "meta-ga4-tracking-2026-09-03-v61",
   defaultReportCount: 89,
   reportCountStartDate: "2026-08-04",
+  // Create these in Meta Events Manager and Google Analytics, then paste the IDs here.
+  // Leave either value blank to disable that platform without breaking the form.
+  metaPixelId: "",
+  googleAnalyticsId: "",
 };
 
 const CONTACT_WHATSAPP_URL = `https://wa.me/${CONFIG.whatsappNumber}`;
@@ -95,11 +99,86 @@ let reportCountVisible = false;
 let reportCountStatsPromise = null;
 let isSubmitting = false;
 let terminalResultShown = false;
+let formStartTracked = false;
+let successfulLeadTracked = false;
 
 function init() {
+  initTracking();
   suggestions.innerHTML = "";
   form.addEventListener("submit", handleSubmit);
+  form.addEventListener("focusin", trackFormStart);
+  submitButton.addEventListener("click", trackReportButtonClick);
+  document.addEventListener("click", trackWhatsappClick);
   loadReportStats();
+}
+
+function initTracking() {
+  if (CONFIG.metaPixelId) {
+    /* Meta Pixel base loader. */
+    !function(f,b,e,v,n,t,s) {
+      if (f.fbq) return;
+      n = f.fbq = function() {
+        n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
+      };
+      if (!f._fbq) f._fbq = n;
+      n.push = n;
+      n.loaded = true;
+      n.version = "2.0";
+      n.queue = [];
+      t = b.createElement(e);
+      t.async = true;
+      t.src = v;
+      s = b.getElementsByTagName(e)[0];
+      s.parentNode.insertBefore(t, s);
+    }(window, document, "script", "https://connect.facebook.net/en_US/fbevents.js");
+    window.fbq("init", CONFIG.metaPixelId);
+    window.fbq("track", "PageView");
+  }
+
+  if (CONFIG.googleAnalyticsId) {
+    const script = document.createElement("script");
+    script.async = true;
+    script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(CONFIG.googleAnalyticsId)}`;
+    document.head.appendChild(script);
+    window.dataLayer = window.dataLayer || [];
+    window.gtag = function() { window.dataLayer.push(arguments); };
+    window.gtag("js", new Date());
+    window.gtag("config", CONFIG.googleAnalyticsId);
+  }
+}
+
+function trackMeta(eventType, eventName, parameters = {}) {
+  if (typeof window.fbq === "function") window.fbq(eventType, eventName, parameters);
+}
+
+function trackGa(eventName, parameters = {}) {
+  if (typeof window.gtag === "function") window.gtag("event", eventName, parameters);
+}
+
+function trackFormStart() {
+  if (formStartTracked) return;
+  formStartTracked = true;
+  trackMeta("trackCustom", "FormStart", { form_name: "Buyability Report" });
+  trackGa("form_start", { form_name: "Buyability Report" });
+}
+
+function trackReportButtonClick() {
+  trackMeta("trackCustom", "GetReportButtonClick", { form_name: "Buyability Report" });
+  trackGa("get_report_button_click", { form_name: "Buyability Report" });
+}
+
+function trackSuccessfulLead(result) {
+  if (successfulLeadTracked || !result || result.duplicate || result.ok === false) return;
+  successfulLeadTracked = true;
+  trackMeta("track", "Lead", { content_name: "Buyability Report" });
+  trackGa("generate_lead", { form_name: "Buyability Report" });
+}
+
+function trackWhatsappClick(event) {
+  const link = event.target.closest('a[href*="wa.me/"]');
+  if (!link) return;
+  trackMeta("track", "Contact", { contact_method: "whatsapp" });
+  trackGa("contact", { method: "whatsapp" });
 }
 
 async function loadReportStats() {
@@ -263,6 +342,7 @@ async function handleSubmit(event) {
 
     const result = CONFIG.appsScriptUrl ? await submitToAppsScript(lead) : demoLookup(lead);
     if (result && result.ok === false) throw new Error(result.error || "Request failed");
+    trackSuccessfulLead(result);
     renderResult(lead, result);
     terminalResultShown = true;
     if (result.duplicate) notifyDuplicateAgentInBackground(lead, result);
