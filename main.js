@@ -2,7 +2,7 @@ const CONFIG = {
   // Replace this with your deployed Apps Script Web App URL.
   appsScriptUrl: "https://script.google.com/macros/s/AKfycbyjaUJFlShe-bg4jm3uOm3b4e7UviLe1jBL1TTMVXP1VDlFhfqkPu0nPapdmYQNh4sC4A/exec",
   whatsappNumber: "6583963088",
-  frontendVersion: "buyability-generation-pixel-2026-09-03-v64",
+  frontendVersion: "buyability-confirmed-lead-2026-10-20-v65",
   defaultReportCount: 89,
   reportCountStartDate: "2026-08-04",
   // Create these in Meta Events Manager and Google Analytics, then paste the IDs here.
@@ -167,11 +167,34 @@ function trackReportButtonClick() {
   trackGa("get_report_button_click", { form_name: "Buyability Report" });
 }
 
-function trackValidatedLead() {
-  if (successfulLeadTracked) return;
+function isSuccessfulReportRequest(result) {
+  // Only an acknowledged, saved request counts. The pending UI and duplicate
+  // checks also return success-like states, but do not confirm a new request.
+  if (!result || result.ok !== true || result.duplicate) return false;
+  const rowNumber = Number(result.loggedRowNumber);
+  if (!Number.isInteger(rowNumber) || rowNumber < 2) return false;
+  return (
+    (result.loggedSheet === "Leads" && result.found === true &&
+      (!result.status || result.status === "FOUND_SENT_MASKED")) ||
+    (result.loggedSheet === "NotFoundRequests" && result.found === false &&
+      result.status === "NOT_FOUND_MANUAL_REVIEW")
+  );
+}
+
+function trackSuccessfulReportRequest(result) {
+  if (!CONFIG.appsScriptUrl || successfulLeadTracked || !isSuccessfulReportRequest(result)) return;
   successfulLeadTracked = true;
-  trackMeta("track", "Lead", { content_name: "Buyability Report" });
-  trackGa("generate_lead", { form_name: "Buyability Report" });
+  // Tracking failures must never turn an accepted request into a form error.
+  try {
+    trackMeta("track", "Lead", { content_name: "Buyability Report" });
+  } catch (error) {
+    console.warn("Meta lead tracking unavailable.");
+  }
+  try {
+    trackGa("generate_lead", { form_name: "Buyability Report" });
+  } catch (error) {
+    console.warn("Analytics lead tracking unavailable.");
+  }
 }
 
 function trackWhatsappClick(event) {
@@ -309,10 +332,6 @@ async function handleSubmit(event) {
     return;
   }
 
-  // Count a conversion as soon as a complete, valid form is submitted.
-  // This does not wait for the email/report-generation backend to finish.
-  trackValidatedLead();
-
   submitButton.disabled = true;
   isSubmitting = true;
   terminalResultShown = false;
@@ -345,7 +364,8 @@ async function handleSubmit(event) {
     }, 21000);
 
     const result = CONFIG.appsScriptUrl ? await submitToAppsScript(lead) : demoLookup(lead);
-    if (result && result.ok === false) throw new Error(result.error || "Request failed");
+    if (!result || result.ok !== true) throw new Error(result?.error || "Request failed");
+    trackSuccessfulReportRequest(result);
     renderResult(lead, result);
     terminalResultShown = true;
     if (result.duplicate) notifyDuplicateAgentInBackground(lead, result);
